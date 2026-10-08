@@ -3,10 +3,12 @@
 A voxel paper-route game in TypeScript and Three.js. Deliver the *Herald* Monday to Friday
 down one suburban route and keep your subscribers.
 
+**Play:** https://pwshfan1980h.github.io/paperman-2/ · rider lab: https://pwshfan1980h.github.io/paperman-2/lab.html
+
 ```bash
 npm install
 npm run dev        # game at http://localhost:5173, rider lab at /lab.html
-npm run build      # static build in dist/
+npm run build      # static build in dist/ (pushing to main deploys it to GitHub Pages)
 npm run check      # type-check
 ```
 

@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Paperman 2 — Rider Lab</title>
+    <style>
+      :root {
+        --panel: rgba(18, 18, 26, 0.82);
+        --ink: #f1ede4;
+        --dim: #9a96a6;
+        --accent: #ffcf4a;
+        --red: #e0443c;
+      }
+      * { box-sizing: border-box; }
+      html, body { margin: 0; height: 100%; overflow: hidden; background: #7d8f6a; font: 13px/1.4 ui-monospace, Menlo, monospace; color: var(--ink); }
+      canvas { display: block; width: 100vw; height: 100vh; }
+      canvas.pixel { image-rendering: pixelated; }
+      #hud { position: fixed; top: 12px; left: 12px; width: 268px; background: var(--panel); border-radius: 10px; padding: 12px 14px; backdrop-filter: blur(4px); user-select: none; }
+      #hud h1 { margin: 0 0 2px; font-size: 15px; letter-spacing: 0.08em; }
+      #hud h1 span { color: var(--red); }
+      #hud .sub { color: var(--dim); margin-bottom: 10px; }
+      .row { display: flex; justify-content: space-between; }
+      .row b { color: var(--accent); font-weight: 600; }
+      .bar { height: 4px; background: #2c2b36; border-radius: 2px; margin: 2px 0 6px; overflow: hidden; }
+      .bar i { display: block; height: 100%; background: var(--accent); width: 0; }
+      .btns { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 10px; }
+      button { flex: 1 1 auto; background: #2c2b36; color: var(--ink); border: 1px solid #3c3a4a; border-radius: 6px; padding: 5px 7px; font: inherit; cursor: pointer; }
+      button:hover { border-color: var(--accent); }
+      button.on { background: var(--accent); color: #1a1a20; border-color: var(--accent); }
+      label { display: flex; align-items: center; gap: 8px; margin-top: 10px; color: var(--dim); }
+      input[type=range] { flex: 1; accent-color: var(--accent); }
+      #keys { position: fixed; bottom: 12px; left: 12px; right: 12px; text-align: center; color: var(--ink); text-shadow: 0 1px 2px #000a; pointer-events: none; }
+      #keys kbd { background: var(--panel); border-radius: 4px; padding: 1px 6px; margin: 0 2px; }
+      #ticker { position: fixed; top: 12px; right: 12px; background: var(--panel); border-radius: 8px; padding: 6px 10px; color: var(--accent); display: none; }
+      @media (max-width: 640px) { #hud { width: auto; right: 12px; font-size: 12px; } #keys { display: none; } }
+    </style>
+  </head>
+  <body>
+    <div id="hud">
+      <h1>PAPERMAN <span>2</span></h1>
+      <div class="sub">rider lab — art &amp; animation</div>
+      <div class="row"><span>state</span><b id="r-state">ride</b></div>
+      <div class="row"><span>speed</span><b id="r-speed">0</b></div>
+      <div class="row"><span>heading</span><b id="r-heading">0°</b></div>
+      <div class="row"><span>lean</span><b id="r-lean">0°</b></div>
+      <div class="row"><span>bars</span><b id="r-steer">0°</b></div>
+      <div class="row"><span>cadence</span><b id="r-cad">0 rpm</b></div>
+      <div class="row" style="margin-top:6px"><span>effort</span></div><div class="bar"><i id="b-effort"></i></div>
+      <div class="row"><span>out of saddle</span></div><div class="bar"><i id="b-stand"></i></div>
+      <div class="row"><span>brake</span></div><div class="bar"><i id="b-brake"></i></div>
+      <div class="row"><span>foot down</span></div><div class="bar"><i id="b-foot"></i></div>
+      <div class="btns">
+        <button data-act="throwL">⟵ throw</button>
+        <button data-act="throwR">throw ⟶</button>
+        <button data-act="crash">crash</button>
+      </div>
+      <div class="btns">
+        <button data-toggle="demo">demo reel</button>
+        <button data-toggle="pause">pause</button>
+        <button data-toggle="skeleton">bones</button>
+        <button data-toggle="pixel">pixel</button>
+        <button data-toggle="spin">orbit</button>
+      </div>
+      <div class="btns" id="cams"></div>
+      <label>time <input id="timescale" type="range" min="0.05" max="1.5" step="0.05" value="1" /> <b id="ts">1.00×</b></label>
+    </div>
+    <div id="ticker"></div>
+    <div id="keys">
+      <kbd>←</kbd><kbd>→</kbd> veer &nbsp; <kbd>↑</kbd> sprint &nbsp; <kbd>↓</kbd> brake / stop &nbsp;
+      <kbd>Space</kbd> hop &nbsp; <kbd>Z</kbd> throw left &nbsp; <kbd>X</kbd> throw right &nbsp; <kbd>C</kbd> crash &nbsp;
+      <kbd>1</kbd>–<kbd>5</kbd> camera &nbsp; <kbd>P</kbd> pause &nbsp; <kbd>.</kbd> step &nbsp; <kbd>[</kbd><kbd>]</kbd> time &nbsp; drag to orbit
+    </div>
+    <script type="module" src="/src/lab/main.ts"></script>
+  </body>
+</html>

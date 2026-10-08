@@ -26,6 +26,11 @@ export const HEADING_MAX = 0.52;
 const WHEELBASE = BIKE.rearHub[2] - BIKE.frontHub[2];
 const THROW_TIME = 0.62;
 const STEP = 1 / 240;
+const BIKE_GRAVITY = 380;
+export const HOP_V = 122;
+const HOP_CROUCH = 0.07;
+export const THROW_SIDE = 88;
+export const THROW_UP = 45;
 
 const v3 = (a: readonly number[]) => new THREE.Vector3(a[0], a[1], a[2]);
 
@@ -72,9 +77,22 @@ export class Rider {
   time = 0;
   crankAngle = 0;
   crankVel = 0;
-  /** total distance the ground has moved; the rider stays put and the world scrolls */
-  readonly groundShift = new THREE.Vector3();
-  readonly groundVel = new THREE.Vector3();
+  /** world position of the bike origin (between the wheels, on the ground) */
+  readonly pos = new THREE.Vector3();
+  readonly vel = new THREE.Vector3();
+  /** the world is static; kept for paper/dust maths */
+  private readonly groundVel = new THREE.Vector3();
+  vy = 0;
+  airborne = false;
+  airTime = 0;
+  private groundVy = 0;
+  private hopT = -1;
+  /** world ground height under (x, z); the game plugs in its collision map */
+  groundAt: (x: number, z: number) => number = () => 0;
+  onEvent?: (name: string, value?: number) => void;
+  /** when set, thrown papers are handed to the game instead of simulated here */
+  onRelease?: (pos: THREE.Vector3, vel: THREE.Vector3, side: number) => void;
+  canThrow?: () => boolean;
 
   readonly heading = new Spring(0, 6.5, 1);
   readonly lean = new Spring(0, 13, 0.85);
@@ -88,6 +106,8 @@ export class Rider {
   private readonly bagPitch = new Spring(0, 6, 0.22);
   private readonly bagRoll = new Spring(0, 6, 0.22);
   private readonly look = new Spring(0, 8, 1);
+  readonly pitch = new Spring(0, 16, 0.7);
+  private readonly tuck = new Spring(0, 14, 0.7);
   private readonly accelS = new Spring(0, 6, 1);
 
   yawRate = 0;
@@ -118,6 +138,8 @@ export class Rider {
   // ---- hierarchy
   private readonly bikeRoot = new THREE.Group();
   private readonly endo = new THREE.Group();
+  private readonly pitchG = new THREE.Group();
+  private readonly blob: THREE.Mesh;
   private readonly leanG = new THREE.Group();
   private readonly bumpG = new THREE.Group();
   private readonly frameM = Models.frame();
@@ -166,10 +188,21 @@ export class Rider {
   constructor() {
     this.root.add(this.bikeRoot);
     this.bikeRoot.add(this.endo);
-    this.endo.add(this.leanG);
+    this.endo.add(this.pitchG);
+    this.pitchG.add(this.leanG);
     this.leanG.add(this.bumpG);
     this.endo.position.z = BIKE.frontContactZ;
-    this.leanG.position.z = -BIKE.frontContactZ;
+    this.pitchG.position.z = BIKE.rearContactZ - BIKE.frontContactZ;
+    this.leanG.position.z = -BIKE.rearContactZ;
+
+    // soft contact shadow that stays readable when the bike is in the air
+    this.blob = new THREE.Mesh(
+      new THREE.CircleGeometry(1, 24),
+      new THREE.MeshBasicMaterial({ color: 0x14121c, transparent: true, opacity: 0.35, depthWrite: false }),
+    );
+    this.blob.rotation.x = -Math.PI / 2;
+    this.blob.renderOrder = 1;
+    this.root.add(this.blob);
 
     this.bumpG.add(this.frameM, this.rearWheel, this.crankM, this.forkM, ...this.pedals);
     this.rearWheel.position.set(...BIKE.rearHub);
@@ -222,22 +255,60 @@ export class Rider {
 
   throwPaper(side: -1 | 1): void {
     if (this.mode === 'crash' || this.footDown.x > 0.5) return;
+    if (this.canThrow && !this.canThrow()) return;
     if (this.throwT < 0) this.startThrow(side);
     else if (this.throwQueue.length < 2) this.throwQueue.push(side);
   }
 
   private startThrow(side: number): void {
     this.throwT = 0;
+    this.onEvent?.('throw', side);
     this.throwSide = side;
     this.released = false;
     this.bagPitch.v -= 1.5;
   }
 
+  /** Put the bike back on the road at (x, z), upright and rolling at `speed`. */
+  reset(x: number, z: number, speed = 0): void {
+    this.mode = 'ride';
+    if (this.riderRoot.parent !== this.bumpG) this.bumpG.add(this.riderRoot);
+    this.pos.set(x, this.groundAt(x, z), z);
+    this.bikeRoot.position.copy(this.pos);
+    this.speed = this.prevSpeed = speed;
+    this.vel.set(0, 0, -speed);
+    for (const s of [this.heading, this.lean, this.steer, this.stand, this.brake, this.footDown, this.pitch, this.tuck, this.bump, this.absorb, this.bagPitch, this.bagRoll, this.look])
+      s.reset(0);
+    this.effort.reset(0.45);
+    this.footDown.reset(speed > 0 ? 0 : 1);
+    this.airborne = false;
+    this.vy = 0;
+    this.hopT = -1;
+    this.throwT = -1;
+    this.throwQueue.length = 0;
+    this.crashEndo = 0;
+    this.handPaper.visible = false;
+    for (const st of this.stars) st.visible = false;
+    for (const p of this.papers) this.root.remove(p.mesh);
+    this.papers.length = 0;
+    this.dust.length = 0;
+    this.pose();
+  }
+
+  hop(): void {
+    if (this.mode === 'crash' || this.airborne || this.hopT >= 0 || this.footDown.x > 0.3) return;
+    this.hopT = 0;
+  }
+
   crash(): void {
     if (this.mode !== 'ride') return;
+    this.onEvent?.('crash');
+    this.airborne = false;
+    this.vy = 0;
+    this.hopT = -1;
     this.mode = 'crash';
     this.crashT = 0;
     this.crashLanded = -1;
+    this.vel.set(0, 0, 0);
     this.crashSpeed = Math.max(this.speed, 70);
     this.crashSlide = this.crashSpeed * 0.4;
     this.crashEndo = 0;
@@ -312,7 +383,7 @@ export class Rider {
     if (this.footDown.x < 0.3) this.plantedDust = false;
     this.stand.step(inp.up && this.footDown.x < 0.3 ? 1 : 0, dt);
     this.brake.step(inp.down && this.speed > 2 ? 1 : 0, dt);
-    const pedaling = !inp.down && this.footDown.x < 0.5;
+    const pedaling = !inp.down && this.footDown.x < 0.5 && !this.airborne;
     this.effort.step(!pedaling ? 0 : inp.up ? 1 : this.speed < target - 4 ? 0.75 : 0.45, dt);
 
     // crank: locked to the wheel while pedaling, settles to level pedals when coasting
@@ -329,7 +400,7 @@ export class Rider {
     this.crankAngle += this.crankVel * dt;
 
     // wheels; the rear locks in a hard skid
-    this.skid = this.brake.x * clamp((this.speed - 30) / 60, 0, 1);
+    this.skid = this.airborne ? 0 : this.brake.x * clamp((this.speed - 30) / 60, 0, 1);
     this.frontAngle += (this.speed / BIKE.wheelR) * dt;
     if (this.skid < 0.5) this.rearAngle += (this.speed / BIKE.wheelR) * dt;
     if (this.skid > 0.3 && Math.random() < this.skid * 0.7) {
@@ -384,15 +455,17 @@ export class Rider {
       }
     }
 
-    // ground moves opposite the bike
+    // travel
     const h = this.heading.x;
-    this.groundVel.set(-Math.sin(h) * this.speed, 0, Math.cos(h) * this.speed);
-    this.groundShift.addScaledVector(this.groundVel, dt);
+    const fx = Math.sin(h), fz = -Math.cos(h);
+    this.vel.set(fx * this.speed, this.airborne ? this.vy : 0, fz * this.speed);
+    this.pos.x += fx * this.speed * dt;
+    this.pos.z += fz * this.speed * dt;
+    this.stepVertical(dt, fx, fz);
   }
 
   private stepCrash(dt: number): void {
     const t = (this.crashT += dt);
-    this.groundVel.set(0, 0, 0);
 
     // bike: noses over, falls on its side, slides to a stop
     this.crashEndo = 0.5 * Math.sin(clamp(t / 0.55, 0, 1) * Math.PI);
@@ -424,11 +497,76 @@ export class Rider {
     if (t > 3.1) this.respawn();
   }
 
+  /** Ground following, ramps, curbs, hops and landings. */
+  private stepVertical(dt: number, fx: number, fz: number): void {
+    const gR = this.groundAt(this.pos.x - fx * BIKE.rearContactZ, this.pos.z - fz * BIKE.rearContactZ);
+    const gF = this.groundAt(this.pos.x - fx * BIKE.frontContactZ, this.pos.z - fz * BIKE.frontContactZ);
+
+    if (this.hopT >= 0) {
+      this.hopT += dt;
+      if (this.hopT >= HOP_CROUCH) {
+        this.hopT = -1;
+        this.airborne = true;
+        this.airTime = 0;
+        this.vy = HOP_V + Math.max(0, this.groundVy);
+        this.onEvent?.('hop');
+      }
+    }
+
+    if (!this.airborne) {
+      const g = Math.max(gR, Math.min(gF, gR + 0.6));
+      if (g < this.pos.y - 1.2) {
+        // rolled off an edge: keep the ramp's vertical speed
+        this.airborne = true;
+        this.airTime = 0;
+        this.vy = this.groundVy;
+        if (this.vy > 25) this.onEvent?.('launch', this.vy);
+      } else {
+        const dy = g - this.pos.y;
+        if (Math.abs(dy) < 1) this.groundVy = lerp(this.groundVy, dy / dt, Math.min(1, dt * 30));
+        else if (dy > 0) {
+          this.absorb.v -= 6 * dy;
+          this.bump.v += 3 * dy;
+          this.onEvent?.('bump', dy);
+        }
+        this.pos.y = g;
+      }
+    }
+    if (this.airborne) {
+      this.airTime += dt;
+      this.vy -= BIKE_GRAVITY * dt;
+      this.pos.y += this.vy * dt;
+      const g = Math.max(gR, gF);
+      if (this.pos.y <= g) {
+        const impact = -this.vy;
+        this.pos.y = g;
+        this.airborne = false;
+        this.vy = 0;
+        this.groundVy = 0;
+        this.absorb.v -= impact * 0.22;
+        this.bump.v -= impact * 0.05;
+        this.bagPitch.v += impact * 0.02;
+        this.onEvent?.('land', impact);
+        if (impact > 60) this.puff(this.pos.clone().setY(g), 6, 14);
+      }
+    }
+
+    let pitchT = Math.atan((gF - gR) / WHEELBASE);
+    if (this.airborne) pitchT = this.vy > 0 ? 0.32 * Math.min(1, this.vy / HOP_V) : -0.1;
+    if (this.hopT >= 0) pitchT = 0.12;
+    this.pitch.step(pitchT, dt);
+    this.tuck.step(this.hopT >= 0 ? 1 : this.airborne ? (this.vy > 0 ? 0.6 : 0.2) : 0, dt);
+  }
+
   private respawn(): void {
     this.mode = 'respawn';
     this.respawnT = 1.2;
     this.bumpG.add(this.riderRoot);
-    this.bikeRoot.position.set(0, 0, 0);
+    this.pos.x = this.bikeRoot.position.x;
+    this.pos.z = this.bikeRoot.position.z;
+    this.pos.y = this.groundAt(this.pos.x, this.pos.z);
+    this.pitch.reset(0);
+    this.tuck.reset(0);
     this.crashEndo = 0;
     this.speed = 0;
     this.prevSpeed = 0;
@@ -442,6 +580,7 @@ export class Rider {
     this.crankAngle = -0.7;
     this.crankVel = 0;
     for (const s of this.stars) s.visible = false;
+    this.onEvent?.('respawn');
   }
 
   private stepPapers(dt: number): void {
@@ -537,7 +676,9 @@ export class Rider {
 
     // ---- bike
     const fishtail = this.skid * 0.07 * Math.sin(this.time * 11);
+    if (!crashing) this.bikeRoot.position.copy(this.pos);
     this.bikeRoot.rotation.set(0, -(this.heading.x + fishtail), 0);
+    this.pitchG.rotation.x = crashing ? 0 : this.pitch.x;
     this.endo.rotation.x = -(crashing ? this.crashEndo : 0);
     this.leanG.rotation.z = -(crashing ? this.crashLean : this.lean.x);
     this.bumpG.position.y = crashing ? 0 : Math.max(-0.3, this.bump.x);
@@ -567,8 +708,8 @@ export class Rider {
       const c2 = Math.cos(a) * Math.cos(a);
       this.riderRoot.position.set(
         BIKE.saddleHip[0] - f * 0.6,
-        BIKE.saddleHip[1] + s * (3.6 - 1.1 * c2) + b * 1.2 - f * 0.4 + this.absorb.x,
-        BIKE.saddleHip[2] - s * 3.2 + b * 2.6 - f * 3.2,
+        BIKE.saddleHip[1] + s * (3.6 - 1.1 * c2) + b * 1.2 - f * 0.4 + this.absorb.x - this.tuck.x * 3.2,
+        BIKE.saddleHip[2] - s * 3.2 + b * 2.6 - f * 3.2 - this.tuck.x * 1.2,
       );
       const hipRoll = (s * 0.13 + (1 - s) * ef * 0.04) * Math.cos(a) + f * 0.12;
       this.riderRoot.rotation.set(-0.06 * s, 0, -hipRoll);
@@ -681,10 +822,12 @@ export class Rider {
       }
       if (!crashing && this.throwT >= RELEASE_T && !this.released && sd === this.throwSide) {
         this.released = true;
-        const vel = right.clone().setY(0).normalize().multiplyScalar(sd * 105)
-          .add(new THREE.Vector3(0, 55, 0))
-          .addScaledVector(fwd.clone().setY(0).normalize(), 15);
-        this.spawnPaper(J.hand[i], vel, new THREE.Quaternion().setFromRotationMatrix(this.forearms[i].matrix));
+        const vel = right.clone().setY(0).normalize().multiplyScalar(sd * THROW_SIDE)
+          .add(new THREE.Vector3(0, THROW_UP, 0))
+          .addScaledVector(fwd.clone().setY(0).normalize(), 15)
+          .add(this.vel);
+        if (this.onRelease) this.onRelease(J.hand[i].clone(), vel, sd);
+        else this.spawnPaper(J.hand[i], vel, new THREE.Quaternion().setFromRotationMatrix(this.forearms[i].matrix));
         this.bagPitch.v += 1;
       }
     }
@@ -709,6 +852,18 @@ export class Rider {
     });
     this.dustMesh.count = this.dust.length;
     this.dustMesh.instanceMatrix.needsUpdate = true;
+
+    // blob shadow under the bike, stronger the higher it flies
+    {
+      const bp = this.bikeRoot.position;
+      const g = this.groundAt(bp.x, bp.z);
+      const hgt = crashing ? 0 : Math.max(0, bp.y - g);
+      const k = clamp(hgt / 6, 0, 1);
+      this.blob.position.set(bp.x, g + 0.15, bp.z);
+      this.blob.rotation.z = -this.heading.x;
+      this.blob.scale.set(5 + hgt * 0.08, 13 - hgt * 0.1, 1);
+      (this.blob.material as THREE.MeshBasicMaterial).opacity = crashing ? 0 : 0.12 + 0.28 * k;
+    }
 
     // respawn blink
     const vis = this.mode !== 'respawn' || Math.floor(this.respawnT * 12) % 2 === 0;

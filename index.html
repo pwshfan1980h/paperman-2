@@ -3,74 +3,234 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Paperman 2 — Rider Lab</title>
+    <title>Paperman 2</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Bungee&family=Press+Start+2P&family=Bungee+Shade&display=swap" rel="stylesheet" />
     <style>
       :root {
-        --panel: rgba(18, 18, 26, 0.82);
-        --ink: #f1ede4;
-        --dim: #9a96a6;
-        --accent: #ffcf4a;
+        --ink: #1c1a22;
+        --paper: #f6f3e6;
         --red: #e0443c;
+        --gold: #ffcf3a;
+        --blue: #2f74e0;
+        --green: #3ab84a;
+        --panel: rgba(20, 18, 28, 0.78);
+        --px: 'Press Start 2P', ui-monospace, monospace;
+        --display: 'Bungee', 'Arial Black', sans-serif;
       }
       * { box-sizing: border-box; }
-      html, body { margin: 0; height: 100%; overflow: hidden; background: #7d8f6a; font: 13px/1.4 ui-monospace, Menlo, monospace; color: var(--ink); }
-      canvas { display: block; width: 100vw; height: 100vh; }
-      canvas.pixel { image-rendering: pixelated; }
-      #hud { position: fixed; top: 12px; left: 12px; width: 268px; background: var(--panel); border-radius: 10px; padding: 12px 14px; backdrop-filter: blur(4px); user-select: none; }
-      #hud h1 { margin: 0 0 2px; font-size: 15px; letter-spacing: 0.08em; }
-      #hud h1 span { color: var(--red); }
-      #hud .sub { color: var(--dim); margin-bottom: 10px; }
-      .row { display: flex; justify-content: space-between; }
-      .row b { color: var(--accent); font-weight: 600; }
-      .bar { height: 4px; background: #2c2b36; border-radius: 2px; margin: 2px 0 6px; overflow: hidden; }
-      .bar i { display: block; height: 100%; background: var(--accent); width: 0; }
-      .btns { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 10px; }
-      button { flex: 1 1 auto; background: #2c2b36; color: var(--ink); border: 1px solid #3c3a4a; border-radius: 6px; padding: 5px 7px; font: inherit; cursor: pointer; }
-      button:hover { border-color: var(--accent); }
-      button.on { background: var(--accent); color: #1a1a20; border-color: var(--accent); }
-      label { display: flex; align-items: center; gap: 8px; margin-top: 10px; color: var(--dim); }
-      input[type=range] { flex: 1; accent-color: var(--accent); }
-      #keys { position: fixed; bottom: 12px; left: 12px; right: 12px; text-align: center; color: var(--ink); text-shadow: 0 1px 2px #000a; pointer-events: none; }
-      #keys kbd { background: var(--panel); border-radius: 4px; padding: 1px 6px; margin: 0 2px; }
-      #ticker { position: fixed; top: 12px; right: 12px; background: var(--panel); border-radius: 8px; padding: 6px 10px; color: var(--accent); display: none; }
-      @media (max-width: 640px) { #hud { width: auto; right: 12px; font-size: 12px; } #keys { display: none; } }
+      html, body { margin: 0; height: 100%; overflow: hidden; background: #1c1a22; color: var(--paper); font-family: var(--px); }
+      canvas { display: block; position: fixed; inset: 0; width: 100vw; height: 100vh; }
+      .hidden { display: none !important; }
+      .layer { position: fixed; inset: 0; pointer-events: none; }
+      .screen { position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; pointer-events: auto; }
+
+      /* ---------------------------------------------------------- HUD */
+      #hud { position: fixed; top: 0; left: 0; right: 0; display: flex; align-items: flex-start; justify-content: space-between; padding: 14px 18px; pointer-events: none; gap: 12px; }
+      .chip { background: var(--panel); border-radius: 10px; padding: 8px 12px; box-shadow: 0 3px 0 rgba(0,0,0,.35); display: flex; align-items: center; gap: 10px; }
+      #day { font-size: 12px; color: var(--gold); letter-spacing: .1em; }
+      #district { font-size: 9px; color: #b8b4c4; margin-top: 4px; }
+      .score { display: flex; gap: 2px; }
+      .score span { display: inline-block; width: 22px; text-align: center; font-size: 22px; color: var(--gold); text-shadow: 0 3px 0 #a8641a, 0 5px 0 rgba(0,0,0,.4); transition: transform .12s; }
+      .score span.dim { color: #5a5468; text-shadow: 0 3px 0 #2a2632; }
+      .score span.bump { transform: translateY(-5px) scale(1.25); }
+      #streak { font-size: 11px; color: #fff; background: var(--red); padding: 4px 7px; border-radius: 6px; transform: rotate(-4deg); opacity: 0; transition: opacity .2s, transform .2s; }
+      #streak.on { opacity: 1; transform: rotate(-4deg) scale(1); }
+      #papers { display: flex; gap: 3px; align-items: center; min-height: 20px; }
+      .roll { width: 8px; height: 20px; background: linear-gradient(90deg, #d8d4c4, #fff 40%, #e8e4d4); border-radius: 3px; position: relative; box-shadow: 0 2px 0 rgba(0,0,0,.35); }
+      .roll::after { content: ''; position: absolute; left: 0; right: 0; top: 8px; height: 4px; background: var(--red); }
+      .roll.gone { opacity: .18; }
+      .count { font-size: 12px; color: var(--paper); margin-left: 6px; }
+      #lives { display: flex; gap: 6px; }
+      .life { width: 26px; height: 16px; position: relative; }
+      .life::before, .life::after { content: ''; position: absolute; bottom: 0; width: 10px; height: 10px; border: 3px solid var(--paper); border-radius: 50%; }
+      .life::before { left: 0; } .life::after { right: 0; }
+      .life i { position: absolute; left: 7px; top: 1px; width: 12px; height: 7px; border-top: 3px solid var(--red); border-left: 3px solid var(--red); transform: skewX(-25deg); }
+      .life.gone { opacity: .2; }
+      #subs { font-size: 12px; color: var(--paper); }
+      #subs b { color: var(--gold); }
+
+      #route { position: fixed; left: 50%; bottom: 16px; transform: translateX(-50%); width: min(720px, 86vw); height: 26px; pointer-events: none; }
+      #route .track { position: absolute; left: 0; right: 0; top: 11px; height: 4px; background: rgba(255,255,255,.25); border-radius: 2px; }
+      #route .seg { position: absolute; top: 20px; font-size: 7px; color: rgba(255,255,255,.6); transform: translateX(-2px); white-space: nowrap; }
+      #route .pip { position: absolute; top: 8px; width: 5px; height: 10px; border-radius: 2px; background: rgba(255,255,255,.35); }
+      #route .pip.sub { background: var(--gold); }
+      #route .pip.ok { background: var(--green); }
+      #route .pip.miss { background: var(--red); }
+      #route .pip.l { top: 1px; }
+      #route .me { position: absolute; top: 4px; width: 14px; height: 18px; margin-left: -7px; background: var(--red); clip-path: polygon(50% 0, 100% 100%, 0 100%); }
+
+      #popups div { position: fixed; left: 0; top: 0; font-family: var(--px); white-space: nowrap; transform: translate(-50%, -50%); text-align: center; text-shadow: 0 3px 0 rgba(0,0,0,.55); will-change: transform, opacity; }
+      #popups .big { font-size: 22px; }
+      #popups .mid { font-size: 14px; }
+      #popups .small { font-size: 10px; }
+      #popups .label { display: block; font-size: 8px; margin-top: 4px; letter-spacing: .1em; }
+
+      #banner { position: fixed; left: 0; right: 0; top: 22%; text-align: center; pointer-events: none; opacity: 0; }
+      #banner .t { font-family: var(--display); font-size: clamp(28px, 6vw, 64px); color: var(--paper); text-shadow: 0 4px 0 var(--ink), 0 8px 0 rgba(0,0,0,.3); letter-spacing: .04em; }
+      #banner .s { font-size: 11px; color: var(--gold); margin-top: 10px; text-shadow: 0 2px 0 var(--ink); }
+      #banner.show { animation: banner 2.4s ease-out forwards; }
+      @keyframes banner { 0% { opacity: 0; transform: translateY(20px) scale(.9); } 12% { opacity: 1; transform: none; } 80% { opacity: 1; } 100% { opacity: 0; transform: translateY(-10px); } }
+      .shake { animation: shake .35s; }
+      @keyframes shake { 20% { transform: translate(-6px, 3px); } 40% { transform: translate(5px, -4px); } 60% { transform: translate(-3px, 2px); } 80% { transform: translate(2px, -1px); } }
+
+      /* ---------------------------------------------------------- intro */
+      #intro .bar { position: fixed; left: 0; right: 0; height: 12vh; background: #000; transition: height .6s; }
+      #intro .bar.top { top: 0; } #intro .bar.bot { bottom: 0; }
+      #intro .cap { position: fixed; left: 0; right: 0; bottom: 15vh; text-align: center; font-size: clamp(11px, 1.6vw, 16px); color: var(--paper); text-shadow: 0 2px 0 #000; opacity: 0; transition: opacity .5s; letter-spacing: .06em; }
+      #intro .cap.on { opacity: 1; }
+      #intro .skip { position: fixed; right: 20px; top: calc(12vh + 14px); font-size: 9px; color: rgba(255,255,255,.6); }
+      #flash { position: fixed; inset: 0; background: #fff; opacity: 0; pointer-events: none; }
+      #flash.go { animation: flash .5s ease-out; }
+      @keyframes flash { 0% { opacity: .9; } 100% { opacity: 0; } }
+
+      /* ---------------------------------------------------------- title */
+      #title { justify-content: flex-start; padding-top: 9vh; background: linear-gradient(180deg, rgba(20,18,28,.55), rgba(20,18,28,0) 45%, rgba(20,18,28,0) 60%, rgba(20,18,28,.75)); }
+      .logo { text-align: center; line-height: .9; transform: rotate(-3deg); }
+      .logo .paper { font-family: var(--display); font-size: clamp(56px, 11vw, 140px); color: var(--paper); letter-spacing: .02em;
+        text-shadow: 0 6px 0 var(--red), 0 12px 0 #8a1e1a, 0 18px 0 var(--ink), 0 26px 16px rgba(0,0,0,.4); }
+      .logo .two { display: inline-block; font-family: var(--display); font-size: clamp(64px, 12vw, 150px); color: var(--gold); transform: rotate(8deg) translateY(-6px);
+        text-shadow: 0 6px 0 #c47a1a, 0 12px 0 #7a4410, 0 18px 0 var(--ink), 0 26px 16px rgba(0,0,0,.4); margin-left: .1em; }
+      .logo.slam { animation: slam .55s cubic-bezier(.2,1.6,.4,1); }
+      @keyframes slam { 0% { transform: rotate(-3deg) scale(3); opacity: 0; } 100% { transform: rotate(-3deg) scale(1); opacity: 1; } }
+      .tagline { margin-top: 26px; font-size: clamp(9px, 1.3vw, 13px); color: var(--gold); letter-spacing: .2em; text-shadow: 0 2px 0 var(--ink); }
+      .menu { margin-top: auto; margin-bottom: 9vh; display: flex; flex-direction: column; gap: 12px; align-items: center; }
+      .menu button { font-family: var(--px); font-size: 14px; color: var(--paper); background: var(--panel); border: 3px solid transparent; border-radius: 12px; padding: 14px 28px; min-width: 300px; cursor: pointer; box-shadow: 0 4px 0 rgba(0,0,0,.4); }
+      .menu button.sel, .menu button:hover { border-color: var(--gold); color: var(--gold); transform: translateY(-2px); }
+      .menu button.sel::before { content: '> '; }
+      .hiscore { position: fixed; bottom: 18px; left: 0; right: 0; text-align: center; font-size: 9px; color: rgba(255,255,255,.7); }
+      .blink { animation: blink 1s steps(2) infinite; }
+      @keyframes blink { 50% { opacity: 0; } }
+
+      /* ---------------------------------------------------------- cards */
+      .card { background: var(--paper); color: var(--ink); border-radius: 6px; padding: 28px 34px; width: min(640px, 92vw); box-shadow: 0 10px 0 rgba(0,0,0,.35), 0 30px 60px rgba(0,0,0,.4); position: relative; }
+      .dim-bg { background: rgba(14, 12, 20, .62); }
+      .news .mast { font-family: 'Bungee Shade', var(--display); font-size: clamp(24px, 4.4vw, 40px); text-align: center; border-bottom: 4px double var(--ink); padding-bottom: 8px; }
+      .news .meta { display: flex; justify-content: space-between; font-size: 8px; padding: 6px 0; border-bottom: 2px solid var(--ink); }
+      .news .head { font-family: var(--display); font-size: clamp(20px, 3.4vw, 32px); margin: 18px 0 8px; line-height: 1.05; }
+      .news .sub { font-size: 10px; line-height: 1.7; color: #4a4656; }
+      .news .cols { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-top: 18px; }
+      .news .stat { background: #ebe6d4; padding: 10px; border-radius: 4px; text-align: center; }
+      .news .stat b { display: block; font-size: 18px; margin-top: 6px; color: var(--red); }
+      .news .stat small { font-size: 7px; letter-spacing: .1em; }
+      .press { margin-top: 22px; text-align: center; font-size: 10px; color: var(--red); }
+      .rows { margin-top: 14px; }
+      .rows .r { display: flex; justify-content: space-between; font-size: 11px; padding: 9px 0; border-bottom: 1px dashed #c8c2ae; opacity: 0; transform: translateX(-8px); transition: all .25s; }
+      .rows .r.on { opacity: 1; transform: none; }
+      .rows .r b { color: var(--red); }
+      .rows .r.total { font-size: 14px; border-bottom: none; padding-top: 14px; }
+      .street { display: flex; flex-wrap: wrap; gap: 3px; margin-top: 14px; }
+      .street i { width: 10px; height: 14px; border-radius: 2px; background: #d8d2bc; }
+      .street i.ok { background: var(--green); } .street i.miss { background: var(--red); } .street i.smash { background: #7a2a8a; }
+      .medal { width: 120px; height: 120px; border-radius: 50%; margin: 6px auto 16px; display: flex; align-items: center; justify-content: center; font-family: var(--display); font-size: 40px; color: var(--ink); box-shadow: inset 0 -8px 0 rgba(0,0,0,.2), 0 6px 0 rgba(0,0,0,.25); }
+      .medal.gold { background: radial-gradient(circle at 35% 30%, #fff3b0, #ffcf3a 50%, #c48a1a); }
+      .medal.silver { background: radial-gradient(circle at 35% 30%, #fff, #c8ccd6 50%, #7a8090); }
+      .medal.bronze { background: radial-gradient(circle at 35% 30%, #ffd8b0, #c8803a 50%, #7a4a1a); }
+      .medal.fired { background: radial-gradient(circle at 35% 30%, #ffb0a8, #e0443c 50%, #7a1a1a); color: var(--paper); font-size: 22px; }
+      .center { text-align: center; }
+      h2 { font-family: var(--display); font-size: 30px; margin: 0 0 8px; text-align: center; }
+      .howto { font-size: 10px; line-height: 2.1; }
+      .howto kbd { background: var(--ink); color: var(--paper); border-radius: 4px; padding: 2px 6px; font-family: var(--px); font-size: 9px; }
+      .howto td { padding: 3px 10px 3px 0; vertical-align: top; }
+      .pts { display: grid; grid-template-columns: 1fr auto; gap: 4px 16px; font-size: 9px; margin-top: 12px; }
+      .pts b { color: var(--red); }
+      #mute { position: fixed; right: 14px; bottom: 14px; font-size: 9px; color: rgba(255,255,255,.55); pointer-events: none; }
+      @media (max-width: 700px) { .score span { width: 15px; font-size: 15px; } #hud { flex-wrap: wrap; padding: 8px; } .chip { padding: 6px 8px; } .menu button { min-width: 240px; font-size: 11px; } }
     </style>
   </head>
   <body>
-    <div id="hud">
-      <h1>PAPERMAN <span>2</span></h1>
-      <div class="sub">rider lab — art &amp; animation</div>
-      <div class="row"><span>state</span><b id="r-state">ride</b></div>
-      <div class="row"><span>speed</span><b id="r-speed">0</b></div>
-      <div class="row"><span>heading</span><b id="r-heading">0°</b></div>
-      <div class="row"><span>lean</span><b id="r-lean">0°</b></div>
-      <div class="row"><span>bars</span><b id="r-steer">0°</b></div>
-      <div class="row"><span>cadence</span><b id="r-cad">0 rpm</b></div>
-      <div class="row" style="margin-top:6px"><span>effort</span></div><div class="bar"><i id="b-effort"></i></div>
-      <div class="row"><span>out of saddle</span></div><div class="bar"><i id="b-stand"></i></div>
-      <div class="row"><span>brake</span></div><div class="bar"><i id="b-brake"></i></div>
-      <div class="row"><span>foot down</span></div><div class="bar"><i id="b-foot"></i></div>
-      <div class="btns">
-        <button data-act="throwL">⟵ throw</button>
-        <button data-act="throwR">throw ⟶</button>
-        <button data-act="crash">crash</button>
+    <div id="game-ui" class="layer hidden">
+      <div id="hud">
+        <div class="chip" style="flex-direction:column;align-items:flex-start;gap:0"><div id="day">MONDAY</div><div id="district">Maple Row</div></div>
+        <div class="chip"><div class="score" id="score"></div><div id="streak">x2</div></div>
+        <div class="chip"><div id="papers"></div><div class="count" id="paper-count">12</div></div>
+        <div class="chip"><div id="subs">★ <b>0</b></div><div id="lives"></div></div>
       </div>
-      <div class="btns">
-        <button data-toggle="demo">demo reel</button>
-        <button data-toggle="pause">pause</button>
-        <button data-toggle="skeleton">bones</button>
-        <button data-toggle="pixel">pixel</button>
-        <button data-toggle="spin">orbit</button>
+      <div id="route"><div class="track"></div></div>
+    </div>
+    <div id="popups" class="layer"></div>
+    <div id="banner"><div class="t"></div><div class="s"></div></div>
+
+    <div id="intro" class="screen hidden" style="pointer-events:auto">
+      <div class="bar top"></div><div class="bar bot"></div>
+      <div class="cap"></div>
+      <div class="skip">PRESS ANY KEY TO SKIP >></div>
+    </div>
+
+    <div id="title" class="screen hidden">
+      <div class="logo"><span class="paper">PAPERMAN</span><span class="two">2</span></div>
+      <div class="tagline">THE MAPLE HOLLOW ROUTE</div>
+      <div class="menu">
+        <button data-act="start">START ROUTE</button>
+        <button data-act="howto">HOW TO PLAY</button>
+        <button data-act="lab">RIDER LAB</button>
       </div>
-      <div class="btns" id="cams"></div>
-      <label>time <input id="timescale" type="range" min="0.05" max="1.5" step="0.05" value="1" /> <b id="ts">1.00×</b></label>
+      <div class="hiscore">HI-SCORE <span id="hi">000000</span> &nbsp;·&nbsp; <span class="blink">PRESS ENTER</span></div>
     </div>
-    <div id="ticker"></div>
-    <div id="keys">
-      <kbd>←</kbd><kbd>→</kbd> veer &nbsp; <kbd>↑</kbd> sprint &nbsp; <kbd>↓</kbd> brake / stop &nbsp;
-      <kbd>Z</kbd> throw left &nbsp; <kbd>X</kbd> throw right &nbsp; <kbd>C</kbd> crash &nbsp;
-      <kbd>1</kbd>–<kbd>5</kbd> camera &nbsp; <kbd>P</kbd> pause &nbsp; <kbd>.</kbd> step &nbsp; <kbd>[</kbd><kbd>]</kbd> time &nbsp; drag to orbit
+
+    <div id="howto" class="screen dim-bg hidden">
+      <div class="card">
+        <h2>HOW TO PLAY</h2>
+        <table class="howto">
+          <tr><td><kbd>←</kbd> <kbd>→</kbd></td><td>veer left / right</td></tr>
+          <tr><td><kbd>↑</kbd> / <kbd>↓</kbd></td><td>sprint / brake</td></tr>
+          <tr><td><kbd>Z</kbd> <kbd>X</kbd></td><td>throw left / right</td></tr>
+          <tr><td><kbd>SPACE</kbd></td><td>bunny hop: over cats, mowers, cans, onto benches</td></tr>
+          <tr><td><kbd>ESC</kbd> <kbd>M</kbd></td><td>pause · mute</td></tr>
+        </table>
+        <div class="howto" style="margin-top:10px">Houses with a <b style="color:#c48a1a">◆ gold marker</b> and a raised flag subscribe. Deliver every one, Monday to Friday. Miss a house twice, or break their window, and they cancel. A perfect day wins two back and earns a bike.</div>
+        <div class="pts">
+          <span>Paper in the mailbox</span><b>250</b>
+          <span>Paper on the porch</span><b>100</b>
+          <span>Non-subscriber window</span><b>100</b>
+          <span>Bullseye · bonk a dog or mower</span><b>200 · 50</b>
+          <span>Big air off a ramp</span><b>air × 400</b>
+          <span>Delivery streak</span><b>up to ×4</b>
+        </div>
+        <div class="press blink">PRESS ENTER</div>
+      </div>
     </div>
-    <script type="module" src="/src/lab/main.ts"></script>
+
+    <div id="brief" class="screen dim-bg hidden">
+      <div class="card news">
+        <div class="mast">The Maple Hollow Herald</div>
+        <div class="meta"><span id="b-date">MONDAY</span><span>MORNING EDITION</span><span>25¢</span></div>
+        <div class="head" id="b-head"></div>
+        <div class="sub" id="b-sub"></div>
+        <div class="cols">
+          <div class="stat"><small>SUBSCRIBERS</small><b id="b-subs">0</b></div>
+          <div class="stat"><small>PAPERS</small><b id="b-papers">12</b></div>
+          <div class="stat"><small>BIKES</small><b id="b-lives">3</b></div>
+        </div>
+        <div class="press blink">PRESS ENTER TO RIDE</div>
+      </div>
+    </div>
+
+    <div id="summary" class="screen dim-bg hidden">
+      <div class="card">
+        <h2 id="s-title">MONDAY DONE</h2>
+        <div class="street" id="s-street"></div>
+        <div class="rows" id="s-rows"></div>
+        <div class="press blink hidden" id="s-press">PRESS ENTER</div>
+      </div>
+    </div>
+
+    <div id="end" class="screen dim-bg hidden">
+      <div class="card center">
+        <h2 id="e-title">PAPERBOY OF THE WEEK</h2>
+        <div class="medal gold" id="e-medal">1</div>
+        <div class="howto" id="e-text"></div>
+        <div class="rows" id="e-rows"></div>
+        <div class="press blink">PRESS ENTER</div>
+      </div>
+    </div>
+
+    <div id="pause" class="screen dim-bg hidden">
+      <div class="card center"><h2>PAUSED</h2><div class="howto">ESC to ride · Q to quit to title</div></div>
+    </div>
+    <div id="flash"></div>
+    <div id="mute">M · SOUND ON</div>
+    <script type="module" src="/src/game/main.ts"></script>
   </body>
 </html>

@@ -42,9 +42,11 @@ export function makeRoad() {
 
   return {
     mesh,
-    /** `shift` is how far the ground has moved in world space. */
-    scroll(shift: THREE.Vector3) {
-      tex.offset.set(-shift.x / TILE, shift.z / TILE);
+    /** Keep the plane under `p`, sliding the texture so the asphalt stays put. */
+    follow(p: THREE.Vector3) {
+      const x = Math.round(p.x / TILE) * TILE, z = Math.round(p.z / TILE) * TILE;
+      mesh.position.set(x, 0, z);
+      tex.offset.set(x / TILE, -z / TILE);
     },
   };
 }

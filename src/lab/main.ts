@@ -115,7 +115,8 @@ addEventListener('keydown', (e) => {
   if (['arrowleft', 'arrowright', 'arrowup', 'arrowdown', ' '].includes(k)) e.preventDefault();
   keys.add(k);
   if (flags.demo && ['arrowleft', 'arrowright', 'arrowup', 'arrowdown', 'a', 'd', 'w', 's', 'z', 'x', 'c'].includes(k)) toggle('demo', false);
-  if (k === 'z' || k === ' ') rider.throwPaper(-1);
+  if (k === ' ') rider.hop();
+  if (k === 'z') rider.throwPaper(-1);
   if (k === 'x') rider.throwPaper(1);
   if (k === 'c') rider.crash();
   if (k === 'p') toggle('pause');
@@ -200,7 +201,7 @@ function updateSkeleton() {
   pairs.forEach((p, i) => p.toArray(arr, i * 3));
   skelGeom.attributes.position.needsUpdate = true;
   skelGeom.setDrawRange(0, pairs.length);
-  const v = rider.groundVel.clone().negate();
+  const v = rider.vel.clone().setY(0);
   if (v.lengthSq() > 1) {
     velArrow.visible = true;
     velArrow.setDirection(v.normalize());
@@ -241,7 +242,14 @@ renderer.setAnimationLoop((now) => {
   if (dt > 0) {
     rider.setInput(flags.demo ? demoInput(dt) : keyInput());
     rider.update(dt);
-    road.scroll(rider.groundShift);
+    road.follow(rider.pos);
+    // keep the camera rig locked to the rider
+    const delta = rider.pos.clone().setY(0).add(new THREE.Vector3(0, 13, 0)).sub(target);
+    target.add(delta);
+    controls.target.add(delta);
+    camera.position.add(delta);
+    sun.position.add(delta);
+    sun.target.position.add(delta);
   }
   if (flags.spin) {
     const off = camera.position.clone().sub(controls.target);

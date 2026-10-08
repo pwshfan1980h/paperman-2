@@ -144,7 +144,7 @@ export function buildLot(p: LotPlan, day: number): Built & { info: HouseInfo } {
   if (dayR.chance(dist.mowers + day * 0.04)) {
     spawns.push({ type: 'mower', ...xz(cv, 20, 20), area: lawn, variant: dayR.int(0, 9), house: p.id });
   }
-  if (dayR.chance(0.09 + day * 0.045)) {
+  if (dayR.chance(0.09 + day * 0.035)) {
     const fenced = fk === 'picket' || fk === 'hedge' ? dayR.chance(0.5) : false;
     const b = lawnFree(14) ? 14 : 50;
     spawns.push({ type: 'dog', ...xz(cv, front - 6, b), area: lawn, variant: dayR.int(0, 99), fenced, side: p.side });

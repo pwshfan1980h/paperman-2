@@ -9,7 +9,7 @@ import { Audio } from './audio';
 import { UI } from './ui';
 import { Rng } from './rng';
 
-type State = 'intro' | 'title' | 'howto' | 'brief' | 'play' | 'dayEnd' | 'summary' | 'end' | 'paused';
+type State = 'boot' | 'intro' | 'title' | 'howto' | 'brief' | 'play' | 'dayEnd' | 'summary' | 'end' | 'paused';
 
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
 const HEADLINES: [string, string][] = [
@@ -56,7 +56,7 @@ export class Game {
   private byPiece = new Map<Piece, Entity[]>();
   private decals = new THREE.Group();
 
-  state: State = 'intro';
+  state: State = 'boot';
   private prevState: State = 'play';
   private keys = new Set<string>();
   private time = 0;
@@ -135,7 +135,10 @@ export class Game {
     addEventListener('resize', () => this.resize());
     document.querySelectorAll<HTMLButtonElement>('#title .menu button').forEach((b, i) =>
       b.addEventListener('click', () => { this.audio.unlock(); this.menuSel = i; this.menuGo(); }));
-    addEventListener('pointerdown', () => this.audio.unlock());
+    addEventListener('pointerdown', () => {
+      this.audio.unlock();
+      if (this.state === 'boot') this.onKey(new KeyboardEvent('keydown', { key: 'Enter' }), true);
+    });
     this.resize();
   }
 
@@ -150,6 +153,8 @@ export class Game {
   start() {
     this.setupRun(0);
     this.beginIntro();
+    this.state = 'boot';
+    this.ui.show('intro', false);
     let last = performance.now();
     this.renderer.setAnimationLoop((now) => {
       const dt = Math.min((now - last) / 1000, 1 / 20);
@@ -165,6 +170,7 @@ export class Game {
 
   /** Skip straight to riding a given day (testing). */
   debugPlay(day = 0) {
+    this.ui.show('boot', false);
     this.ui.show('intro', false);
     this.toTitle();
     this.newRun();
@@ -278,10 +284,10 @@ export class Game {
     bundle.root.visible = false;
     this.introBundle = bundle;
     this.addEntity(bundle);
-    this.audio.music(null);
   }
   private introBundle: Bundle | null = null;
   private introRider = false;
+  private introShot = -1;
 
   private endIntro() {
     this.ui.show('intro', false);
@@ -291,6 +297,7 @@ export class Game {
 
   private toTitle(slam = false) {
     this.state = 'title';
+    this.ui.clearPopups();
     this.attract = true;
     this.setupRun(0);
     this.rider.reset(24, -30, CRUISE);
@@ -370,6 +377,13 @@ export class Game {
     }
     const enter = k === 'enter' || k === ' ';
     switch (this.state) {
+      case 'boot':
+        this.ui.show('boot', false);
+        this.ui.show('intro');
+        this.state = 'intro';
+        this.introT = 0;
+        this.audio.music('title');
+        break;
       case 'intro': this.endIntro(); break;
       case 'title':
         if (k === 'arrowup' || k === 'w') { this.menuSel = (this.menuSel + 2) % 3; this.renderMenu(); this.sfx('move'); }
@@ -410,6 +424,7 @@ export class Game {
     const r = this.rider;
     const playing = this.state === 'play' || this.state === 'dayEnd';
     const live = playing || this.state === 'title' || this.state === 'howto' || this.state === 'intro';
+    if (this.state === 'boot') this.world.stream(-200, 1);
 
     if (live) {
       if (this.state === 'play') r.setInput(this.input());
@@ -432,7 +447,7 @@ export class Game {
       if (playing) this.playTick(dt);
       if (this.attract && r.pos.z < this.world.finishZ + 200) { this.loadWorld(0); this.rider.reset(24, -30, CRUISE); }
     }
-    if (this.state === 'intro') this.introTick(dt);
+    if (this.state === 'intro' || this.state === 'boot') this.introTick(this.state === 'boot' ? 0 : dt);
     else this.updateCamera(dt);
     this.ui.update(dt, this.camera);
     this.renderer.render(this.scene, this.camera);
@@ -786,6 +801,7 @@ export class Game {
 
   private toSummary() {
     this.state = 'summary';
+    this.ui.clearPopups();
     this.audio.music(null);
     const subs = [...this.houses.entries()].filter(([, h]) => h.subscriber);
     const delivered = subs.filter(([, h]) => h.delivered && !h.smashed).length;
@@ -852,6 +868,7 @@ export class Game {
 
   private toEnd(won: boolean, why = 'Out of bikes.') {
     this.state = 'end';
+    this.ui.clearPopups();
     this.audio.music(won ? 'fanfare' : 'gameover');
     const kept = this.subCount();
     const ratio = kept / Math.max(1, this.initialSubs);
@@ -984,6 +1001,8 @@ export class Game {
       { t0: 11.8, t1: 16, from: [40, 20, 20], to: [30, 160, 140], look0: [24, 14, -120], look1: [10, 0, -260] },
     ];
     const s = shots.find((sh) => t >= sh.t0 && t < sh.t1) ?? shots[shots.length - 1];
+    const shotIdx = shots.indexOf(s);
+    if (shotIdx !== this.introShot) { if (this.introShot >= 0) this.sfx('whoosh', undefined, 0.5); this.introShot = shotIdx; }
     const k = Math.min(1, (t - s.t0) / (s.t1 - s.t0));
     const e = k * k * (3 - 2 * k);
     const lerp3 = (a: number[], b: number[]) => new THREE.Vector3(a[0] + (b[0] - a[0]) * e, a[1] + (b[1] - a[1]) * e, a[2] + (b[2] - a[2]) * e);

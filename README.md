@@ -1,23 +1,47 @@
-# Paperman 2
+# Paperman 2: The Maple Hollow Route
 
-Voxel paperboy, take two. TypeScript + Three.js. **Current phase: rider art & animation only.**
+A voxel paper-route game in TypeScript and Three.js. Deliver the *Herald* Monday to Friday
+down one suburban route and keep your subscribers.
 
 ```bash
 npm install
-npm run dev        # rider lab at http://localhost:5173
+npm run dev        # game at http://localhost:5173, rider lab at /lab.html
+npm run build      # static build in dist/
 npm run check      # type-check
 ```
 
-## Rider lab
+## The game
 
-The rider is a procedural rig, not baked frames:
+- **Goal:** survive the week. Houses with a gold marker and a raised flag subscribe. A miss is a
+  strike; two strikes (or a smashed window) and they cancel. A perfect day wins two back and a
+  bike. Finish Friday for a rank: Gold (85%+ kept), Silver (60%+), Bronze. Run out of bikes or
+  subscribers and you're fired.
+- **Route** (~6,000 voxels long, ~85 s a day): Herald Depot → Maple Row → crossing → Sycamore Court →
+  Birch Park (ramps, bullseyes, pond) → Hilltop Lane → road works → Elm Street → crossing →
+  Willow Bend → finish arch.
+- **Houses:** ranch, colonial, craftsman, Cape Cod, modern, Victorian (turret), split-level,
+  A-frame; each district has its own style mix, trees, fences and yard clutter.
+- **Life:** dogs (7 breeds; sleep, sit, bark, chase, return; fenced ones run the fence line),
+  cats (6 coats; perch, groom, loaf, dart across the road), bot mowers (stripe lawns; rogue
+  ones roam the street from Wednesday), bird flocks that scatter, ducks, geese overhead,
+  squirrels, parked and moving cars, trash cans, knockable cones, paper bundles.
+- **Scoring:** mailbox 250, porch 100, non-subscriber window 100, bullseye 200, bonk a dog or
+  mower 50, air time × 400, bench/fountain/porch stalls 75. Deliveries build a streak up to ×4.
 
-- **Voxel parts** (`src/rider/models.ts`): every body part and bike part is its own voxel mesh with baked AO (`src/voxel/vox.ts`).
-- **IK limbs** (`src/rider/motion.ts`): legs solve two-bone IK onto pedals that ride a real crank; hands solve onto grips on the steering fork.
-- **Springs everywhere** (`src/rider/rider.ts`): heading, lean, bar steer, standing, braking, foot-down, bag swing and head look are damped springs, so every transition blends.
-- **Physically-driven lean**: lean = atan(v · yawRate / g); bar angle comes from bike kinematics, plus a flick of countersteer.
-- Three true headings: straight, and ±30° (`HEADING_MAX`).
+Keys: ←/→ veer · ↑ sprint · ↓ brake · Z/X throw left/right · Space hop · Esc pause · M mute.
 
-Animations: cruise pedaling, sprint out of the saddle (bike rocks under the rider), coast with level pedals, brake/skid with dust and fishtail, stop with the left foot planted, push-off, throw left/right (reach into bag → wind-up → release → follow-through, paper flies and lands), road bumps absorbed by the legs, crash (endo, flip, sprawl, stars, respawn blink).
+## Code
 
-Keys: ←/→ veer, ↑ sprint, ↓ brake/stop, Z throw left, X throw right, C crash, 1–5 cameras, P pause, `.` step, `[` `]` time scale, K bones, V pixel mode, G demo reel.
+```
+src/rider/        rigged voxel rider: IK legs/arms, springs, hop, ramps, crash (the locked "feel")
+src/voxel/        Vox (sparse, for characters) and Grid (dense + greedy AO mesher, for the world)
+src/game/world/   route layout, streaming, collision/ground queries, houses, lots, props, specials
+src/game/entities creature and vehicle models + behaviours, particles
+src/game/         game loop and state machine, papers, audio synth + music, HUD
+src/lab/          rider lab (lab.html)
+```
+
+Debug: `#debug` keeps the drawing buffer for screenshots, `#debug-play` / `#debug-play3` jumps
+straight into a day, and `game.debugBot(frames)` rides a day with a simple bot and reports.
+
+See `ROADMAP.md` for the second-pass plan.

@@ -331,8 +331,8 @@ export function buildFinish(zNear: number, len: number): Built {
   // finish arch: posts on the sidewalks, checkered banner overhead
   const v = new Vox();
   const span = (ROAD_HALF + 10) * 2;
-  for (const x of [0, span - 3]) for (let y = 0; y < 44; y++) for (let i = 0; i < 3; i++) for (let k = 0; k < 3; k++) v.set(x + i, y, k, y % 8 < 4 ? 0xd8322f : 0xf4f1e8);
-  for (let x = 0; x < span; x++) for (let y = 34; y < 44; y++) v.set(x, y, 1, (Math.floor(x / 4) + Math.floor(y / 4)) % 2 ? 0x1e1e24 : 0xf4f1e8);
+  for (const x of [0, span - 3]) for (let y = 0; y < 58; y++) for (let i = 0; i < 3; i++) for (let k = 0; k < 3; k++) v.set(x + i, y, k, y % 8 < 4 ? 0xd8322f : 0xf4f1e8);
+  for (let x = 0; x < span; x++) for (let y = 48; y < 58; y++) v.set(x, y, 1, (Math.floor(x / 4) + Math.floor(y / 4)) % 2 ? 0x1e1e24 : 0xf4f1e8);
   const arch = voxMesh(v, [span / 2, 0, 1.5]);
   arch.position.set(0, 0, zNear - 40);
   out.group.add(arch);

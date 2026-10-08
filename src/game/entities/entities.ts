@@ -136,7 +136,7 @@ export class Dog extends Entity {
         const lead = c.day * 0.06;
         const tx = r.pos.x + r.vel.x * lead, tz = r.pos.z + r.vel.z * lead;
         face = yawTo(tx - this.x, tz - this.z);
-        want = this.breed.speed * (0.72 + c.day * 0.06);
+        want = this.breed.speed * (0.72 + c.day * 0.05);
         this.barkT -= dt;
         if (this.barkT < 0) { this.barkT = 0.5 + Math.random() * 0.6; c.sfx('bark', this.root.position); }
         if (this.t > 2.4 + c.day * 0.35 || dist > 150 || r.mode === 'crash') this.to('return', c);
@@ -721,8 +721,10 @@ export class Mailbox extends Entity {
     return new THREE.Box3(new THREE.Vector3(this.x - 7, this.y + 6, this.z - 9), new THREE.Vector3(this.x + 7, this.y + 30, this.z + 9));
   }
 
+  private wob = 0;
   deliver(c: Ctx) {
     this.delivered = true;
+    this.wob = 1;
     c.particles.emit(new THREE.Vector3(this.x, this.y + 18, this.z), 18, { color: [0xffe14a, 0xffffff, 0xff8a2a], speed: 30, up: 30, size: 0.9, life: 0.7 });
   }
 
@@ -734,7 +736,9 @@ export class Mailbox extends Entity {
     this.marker.visible = this.subscriber && !this.delivered;
     this.marker.position.y = 30 + Math.sin(this.t * 3) * 1.5;
     this.marker.rotation.y = this.t * 2;
-    if (this.delivered) this.m.box.rotation.x = Math.sin(this.t * 30) * Math.max(0, 0.15 - (this.t % 100) * 0);
+    this.wob = Math.max(0, this.wob - dt * 2.5);
+    this.m.box.rotation.z = Math.sin(this.t * 40) * 0.25 * this.wob;
+    this.m.box.scale.setScalar(1 + this.wob * 0.25);
   }
 
   paperHit(_at: THREE.Vector3, c: Ctx) {

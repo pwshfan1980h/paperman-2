@@ -1,0 +1,57 @@
+export const P = {
+  ink: 0x1c1a22,
+  skin: 0xf2b58a,
+  skinShade: 0xdc9670,
+  blush: 0xf09a8a,
+  mouth: 0xb8604c,
+  hair: 0x6b3a1e,
+  hairDark: 0x4e2a14,
+
+  cap: 0xd8322f,
+  capDark: 0xa82424,
+  capLogo: 0xf4f0e6,
+
+  tee: 0xf3efe4,
+  teeShade: 0xd8d2c4,
+  sleeve: 0xd8322f,
+  stripe: 0x2f74e0,
+
+  jeans: 0x3b5bb5,
+  jeansDark: 0x2c4590,
+  cuff: 0x7092dc,
+  belt: 0x5a3a20,
+  buckle: 0xe8c040,
+
+  sock: 0xf5f5f0,
+  shoe: 0xf0f0ea,
+  shoeAccent: 0xd8322f,
+  lace: 0xb8b8c0,
+  sole: 0x3a3438,
+
+  strap: 0x8a6a3a,
+  bag: 0xe6dcc0,
+  bagShade: 0xc8bb98,
+  flap: 0xd6c69c,
+  bagPatch: 0xd8322f,
+
+  paper: 0xf6f3e6,
+  paperPrint: 0xbab6aa,
+  paperBand: 0xd23a3a,
+
+  frame: 0x2f74e0,
+  frameLight: 0x62a0f6,
+  chrome: 0xccd0da,
+  chromeDark: 0x868c98,
+  chain: 0x4a4a52,
+  tire: 0x222228,
+  tread: 0x34343e,
+  seat: 0x26262e,
+  grip: 0xf2f2ea,
+  pad: 0xe0342f,
+  plate: 0xf3d23c,
+  reflector: 0xff7a1a,
+  reflectorRed: 0xe02020,
+
+  star: 0xffe14a,
+  dust: 0xb8ab94,
+} as const;
